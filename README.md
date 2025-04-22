@@ -3,7 +3,7 @@
 # auto-mcs
 Welcome to auto-mcs! This software provides a simple and easy-to-digest experience for those who want to play Minecraft with their friends without the hassle of server installation & maintenance.
 <br><br>
-
+ 
 Some notable features include:
  - Create a server in less than a minute
  - No port forwarding required with our [playit.gg integration](https://playit.gg)

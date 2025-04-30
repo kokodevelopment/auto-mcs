@@ -250,7 +250,7 @@ class ServerObject():
     # Checks if server was initialized remotely
     def _is_telepath_session(self):
         try:
-            return constants.server_manager.remote_server == self
+            return self in constants.server_manager.remote_servers.values()
         except AttributeError:
             pass
         except RecursionError:
@@ -2126,7 +2126,7 @@ class ServerManager():
 
         self.server_list = create_server_list()
         self.current_server = None
-        self.remote_server = None
+        self.remote_servers = {}
         self.running_servers = {}
 
         # Load telepath servers
@@ -2178,40 +2178,46 @@ class ServerManager():
         return self.current_server
 
     # Sets self.remote_server to selected ServerObject
-    def open_remote_server(self, name):
+    def open_remote_server(self, host: str, name: str):
         try:
             if self.current_server.name == name:
-                self.remote_server = self.current_server
+                self.remote_servers[host] = self.current_server
 
                 if constants.debug:
-                    print(vars(self.remote_server))
+                    print(vars(self.remote_servers[host]))
 
-                return bool(self.remote_server)
+                return host in self.remote_servers
 
         except AttributeError:
             pass
 
-
-        if self.remote_server:
-            crash_info = (self.remote_server.name, self.remote_server.crash_log)
+        if host in self.remote_servers:
+            crash_info = (self.remote_servers[host].name, self.remote_servers[host].crash_log)
+            del self.remote_servers[host]
         else:
             crash_info = (None, None)
 
-        del self.remote_server
-        self.remote_server = None
-
         # Check if server is running
         if name in self.running_servers.keys():
-            self.remote_server = self.running_servers[name]
+            self.remote_servers[host] = self.running_servers[name]
+
         else:
-            self.remote_server = ServerObject(name)
-            if crash_info[0] == name:
-                self.remote_server.crash_log = crash_info[1]
+            # Check if server is already open on another host
+            for server_obj in self.remote_servers.values():
+                if name == server_obj.name:
+                    self.remote_servers[host] = server_obj
+                    break
+
+            # Initialize a new server object
+            else:
+                self.remote_servers[host] = ServerObject(name)
+                if crash_info[0] == name:
+                    self.remote_servers[host].crash_log = crash_info[1]
 
         if constants.debug:
-            print(vars(self.remote_server))
+            print(vars(self.remote_servers[host]))
 
-        return bool(self.remote_server)
+        return host in self.remote_servers
 
     # Reloads self.current_server
     def reload_server(self):

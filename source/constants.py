@@ -369,6 +369,7 @@ def apply_template(template: dict):
 
     # Get telepath data
     telepath_data = None
+    name_list = server_list_lower
     if new_server_info:
         telepath_data = new_server_info['_telepath_data']
 
@@ -376,11 +377,12 @@ def apply_template(template: dict):
 
     if telepath_data:
         new_server_info['_telepath_data'] = telepath_data
+        name_list = get_remote_var('server_list_lower', telepath_data)
 
     t = template['server']
     s = t['settings']
 
-    new_server_info["name"] = new_server_name(template['template']['name'])
+    new_server_info["name"] = new_server_name(template['template']['name'], name_list)
     new_server_info["type"] = t["type"]
     new_server_info["version"] = t["version"]
     new_server_info['server_settings']["world"] = "world" if not s["world"]["path"] else s["world"]["path"]
@@ -2555,9 +2557,9 @@ def push_new_server(server_info: dict, import_info={}):
 
 
 # Generate new server name
-def new_server_name(existing_server=None, s_list=server_list_lower):
+def new_server_name(existing_server=None, s_list=None):
     pattern = r'\s\(\d+\)$'
-    if not s_list:
+    if s_list is None:
         generate_server_list()
         s_list = server_list_lower
     def iter_name(new_name):
@@ -4117,11 +4119,11 @@ eula=true"""
 
                 # Delete all *.jar files in directory
                 for jar in glob(os.path.join(tmpsvr, '*.jar'), recursive=False):
-                    if not ((jar.startswith('minecraft_server') and import_data['type'] == 'forge') or (file_name in jar)):
+                    if not ((jar.startswith('minecraft_server') and import_data['type'] == 'forge') or (file_name and file_name in jar)):
                         os.remove(jar)
 
                     # Rename actual .jar file to server.jar to prevent crashes
-                    if file_name in jar:
+                    if file_name and file_name in jar:
                         run_proc(f"{'move' if os_name == 'windows' else 'mv'} \"{os.path.join(tmpsvr, os.path.basename(jar))}\" \"{os.path.join(tmpsvr, 'server.jar')}\"")
 
 
@@ -4163,6 +4165,11 @@ eula=true"""
 
             try:
                 config_file.set('general', 'enableProxy', str(import_data['config_file'].get('general', 'enableProxy')).lower())
+            except configparser.NoOptionError:
+                pass
+
+            try:
+                config_file.set('general', 'consoleFilter', str(import_data['config_file'].get('general', 'consoleFilter')).lower())
             except configparser.NoOptionError:
                 pass
 
@@ -5948,8 +5955,8 @@ def gather_config_files(name: str, max_depth: int = 3) -> dict[str, list[str]]:
     root = server_path(name)
     excludes = [
         'version_history.json', 'version_list.json', 'usercache.json', 'banned-players.json', 'banned-ips.json',
-        'whitelist.json', 'ops.json', 'ops.txt', 'whitelist.txt', 'banned-players.txt', 'banned-ips.txt', 'eula.txt',
-        'bans.txt', 'modrinth.index.json', 'amscript', server_ini
+        'banned-subnets.json', 'whitelist.json', 'ops.json', 'ops.txt', 'whitelist.txt', 'banned-players.txt',
+        'banned-ips.txt', 'eula.txt', 'bans.txt', 'modrinth.index.json', 'amscript', server_ini
     ]
     final_dict = {}
 
@@ -6892,11 +6899,11 @@ class SearchManager():
 
             'Server': [
                 ScreenObject('Server Manager', 'ServerViewScreen', {'Launch server': None, 'Stop server': None, 'Restart server': None, 'Enter console commands': None}),
-                ScreenObject('Back-up Manager', 'ServerBackupScreen', {'Save a back-up now': None, 'Restore from a back-up': 'ServerBackupRestoreScreen', 'Enable automatic back-ups': None, 'Specify maximum back-ups': None, 'Open back-up directory': None, 'Migrate back-up directory': None}, ['backup', 'revert', 'snapshot', 'restore', 'save']),
+                ScreenObject('Back-up Manager', 'ServerBackupScreen', {'Save a back-up now': None, 'Restore from a back-up': 'ServerBackupRestoreScreen', 'Enable automatic back-ups': None, 'Specify maximum back-ups': None, 'Open back-up directory': None, 'Migrate back-up directory': None, 'Clone this server': 'ServerCloneScreen'}, ['backup', 'revert', 'snapshot', 'restore', 'save', 'clone']),
                 ScreenObject('Access Control', 'ServerAclScreen', {'Configure bans': None, 'Configure operators': None, 'Configure the whitelist': None}, ['player', 'user', 'ban', 'white', 'op', 'rule', 'ip', 'acl', 'access control']),
                 ScreenObject('Add-on Manager', 'ServerAddonScreen', {'Download add-ons': 'ServerAddonSearchScreen', 'Import add-ons': None, 'Toggle add-on state': None, 'Update add-ons': None}, ['mod', 'plugin', 'addon', 'extension']),
                 ScreenObject('Script Manager', 'ServerAmscriptScreen', {'Download scripts': 'ServerAmscriptSearchScreen', 'Import scripts': None, 'Create a new script': 'CreateAmscriptScreen', 'Edit a script': None, 'Open script directory': None}, ['amscript', 'script', 'ide', 'develop']),
-                ScreenObject('Server Settings', 'ServerSettingsScreen', {"Edit configuration files": None, "Edit 'server.properties'": None, 'Open server directory': None, 'Specify memory usage': None, 'Change MOTD': None, 'Specify IP/port': None, 'Change launch flags': None, 'Enable proxy (playit)': None, 'Install proxy (playit)': None, 'Enable Bedrock support': None, 'Enable automatic updates': None, 'Update this server': None, "Change 'server.jar'": 'MigrateServerTypeScreen', 'Rename this server': None, 'Change world file': 'ServerWorldScreen', 'Delete this server': None}, ['ram', 'memory', 'server.properties', 'properties', 'rename', 'delete', 'bedrock', 'proxy', 'ngrok', 'playit', 'update', 'jvm', 'motd', 'yml', 'config'])
+                ScreenObject('Server Settings', 'ServerSettingsScreen', {"Edit configuration files": 'ServerConfigScreen', "Edit 'server.properties'": None, 'Open server directory': None, 'Specify memory usage': None, 'Change MOTD': None, 'Specify IP/port': None, 'Change launch flags': None, 'Enable proxy (playit)': None, 'Install proxy (playit)': None, 'Enable Bedrock support': None, 'Enable automatic updates': None, 'Update this server': None, "Change 'server.jar'": 'MigrateServerTypeScreen', 'Rename this server': None, 'Change world file': 'ServerWorldScreen', 'Delete this server': None}, ['ram', 'memory', 'server.properties', 'properties', 'rename', 'delete', 'bedrock', 'proxy', 'ngrok', 'playit', 'update', 'jvm', 'motd', 'yml', 'config'])
             ]
         }
 
